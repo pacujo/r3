@@ -146,6 +146,15 @@ pub fn declare_event(name: &'static str) -> EventRef {
     link
 }
 
+pub fn timestamp() -> String {
+    chrono::offset::Utc::now().format(
+        "%Y-%m-%d %H:%M:%S.%6f").to_string()
+}
+
+pub fn urlencode(repr: String) -> String {
+    urlencoding::encode(repr.as_str()).to_string()
+}
+
 #[macro_export]
 macro_rules! r3_declare_event {
     ($event:ident) => {
@@ -175,10 +184,8 @@ macro_rules! r3_event_is_selected {
 macro_rules! r3_format_event_arg {
     ($arg:ident, $val:expr) => {
         {
-            let arg = $crate::r3_dashify_id!($arg);
-            let val = ($val).to_string();
-            let enc = urlencoding::encode(val.as_str());
-            format!("{}={}", arg, enc).to_string()
+            let enc = $crate::urlencode(($val).to_string());
+            format!("{}={}", $crate::r3_dashify_id!($arg), enc).to_string()
         }
     };
 }
@@ -187,8 +194,7 @@ macro_rules! r3_format_event_arg {
 macro_rules! r3_format_event_args {
     ($event:ident { $($arg:ident: $val:expr,)* }) => {
         vec![
-            chrono::offset::Utc::now().format(
-                "%Y-%m-%d %H:%M:%S.%6f").to_string(),
+            $crate::timestamp(),
             $crate::r3_dashify_id!($event),
             $($crate::r3_format_event_arg!($arg, $val),)*
         ].join(" ")
