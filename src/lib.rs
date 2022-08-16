@@ -3,7 +3,6 @@
 #[macro_use]
 extern crate lazy_static;
 
-use std::collections::HashMap;
 use std::fmt::Write;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
@@ -268,7 +267,7 @@ impl Event {
 pub type EventRef = Arc<RwLock<Event>>;
 
 pub struct EventsBody {
-    events: HashMap<&'static str, EventRef>,
+    events: Vec<(&'static str, EventRef)>,
     selector: Box<dyn Selector + Sync + Send>,
     emitter: Box<dyn Emitter + Sync + Send>,
     seqno: u64,
@@ -364,7 +363,7 @@ impl Emitter for NullEmitter {
 
 lazy_static! {
     pub static ref TRACE_DB: Events = Events(RwLock::new(EventsBody {
-        events: HashMap::new(),
+        events: Vec::new(),
         selector: Box::new(NullSelector::new()),
         emitter: Box::new(StderrEmitter::new()),
         seqno: 0,
@@ -387,7 +386,7 @@ pub fn declare_event(name: &'static str) -> EventRef {
     let mut events_body = TRACE_DB.mut_body();
     let link = Arc::new(RwLock::new(
         Event::new(events_body.selector.select(name.to_string()))));
-    events_body.events.insert(name, link.clone());
+    events_body.events.push((name, link.clone()));
     link
 }
 
@@ -404,9 +403,8 @@ pub fn urlencode(repr: String) -> String {
 macro_rules! r3_declare_event {
     ($event:ident) => {
         lazy_static! {
-            static ref $event: $crate::EventRef = {
-                $crate::declare_event(stringify!($event))
-            };
+            static ref EVENT: $crate::EventRef =
+                $crate::declare_event(stringify!($event));
         }
     }
 }
@@ -421,7 +419,7 @@ macro_rules! r3_dashify_id {
 #[macro_export]
 macro_rules! r3_event_is_selected {
     ($event:ident) => {
-        $event.read().unwrap().is_selected()
+        EVENT.read().unwrap().is_selected()
     };
 }
 
@@ -457,24 +455,40 @@ macro_rules! emit {
 #[macro_export]
 macro_rules! TRACE {
     ($event:ident { $($arg:ident: $val:expr),* }) => {
-        $crate::r3_declare_event!($event);
-        if $crate::r3_event_is_selected!($event) {
-            $crate::emit!($crate::r3_format_event_args!(
-                $event { $($arg: $val,)* }));
+        {
+            $crate::r3_declare_event!($event);
+            if $crate::r3_event_is_selected!($event) {
+                $crate::emit!($crate::r3_format_event_args!(
+                    $event { $($arg: $val,)* }));
+            }
         }
     };
     ($event:ident { $($arg:ident: $val:expr,)* }) => {
-        $crate::r3_declare_event!($event);
-        if $crate::r3_event_is_selected!($event) {
-            $crate::emit!($crate::r3_format_event_args!(
-                $event { $($arg: $val,)* }));
+        {
+            $crate::r3_declare_event!($event);
+            if $crate::r3_event_is_selected!($event) {
+                $crate::emit!($crate::r3_format_event_args!(
+                    $event { $($arg: $val,)* }));
+            }
         }
     };
     ($event:ident) => {
-        $crate::r3_declare_event!($event);
-        if $crate::r3_event_is_selected!($event) {
-            $crate::emit!($crate::r3_format_event_args!(
-                $event {}));
+        {
+            $crate::r3_declare_event!($event);
+            if $crate::r3_event_is_selected!($event) {
+                $crate::emit!($crate::r3_format_event_args!(
+                    $event {}));
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! TRACE_ENABLED {
+    ($event:ident) => {
+        {
+            $crate::r3_declare_event!($event);
+            $crate::r3_event_is_selected!($event)
         }
     };
 }
