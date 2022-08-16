@@ -4,7 +4,108 @@
 extern crate lazy_static;
 
 use std::collections::HashMap;
+use std::fmt::Write;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+
+pub fn format_in_threes(f: &mut std::fmt::Formatter, n: u64)
+                        -> std::fmt::Result {
+    if n >= 1000 {
+        format_in_threes(f, n / 1000)?;
+        write!(f, "_{:03}", n % 1000)
+    } else {
+        write!(f, "{}", n)
+    }
+}
+
+pub fn format_in_threes_signed(f: &mut std::fmt::Formatter, n: i64)
+                               -> std::fmt::Result {
+    if n < 0 {
+        write!(f, "-")?;
+        format_in_threes(f, -n as u64)
+    } else {
+        format_in_threes(f, n as u64)
+    }
+}
+
+pub fn octets(data: &[u8]) -> String {
+    let mut result = String::new();
+    for i in data.iter() {
+        write!(result, "{:02x}", *i).unwrap();
+    }
+    result
+}
+
+pub fn hex(n: u64) -> String {
+    let mut result = String::new();
+    write!(result, "0x{:x}", n).unwrap();
+    result
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct UID(u64);
+
+impl UID {
+    pub fn new() -> UID {
+        let mut events_body = TRACE_DB.mut_body();
+        let uid = UID(events_body.seqno);
+        events_body.seqno += 1;     // TODO: forking support
+        uid
+    }
+}
+
+impl std::fmt::Display for UID {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        format_in_threes(f, self.0)
+    }
+} // impl Display for UID
+
+impl PartialEq for UID {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+} // impl PartialEq for UID
+
+impl Eq for UID {}
+
+impl PartialOrd for UID {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+
+    fn lt(&self, other: &Self) -> bool {
+        self.0.lt(&other.0)
+    }
+
+    fn le(&self, other: &Self) -> bool {
+        self.0.le(&other.0)
+    }
+
+    fn gt(&self, other: &Self) -> bool {
+        self.0.gt(&other.0)
+    }
+
+    fn ge(&self, other: &Self) -> bool {
+        self.0.ge(&other.0)
+    }
+}
+
+impl Ord for UID {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+
+    fn max(self, other: Self) -> Self {
+        UID(self.0.max(other.0))
+    }
+
+    fn min(self, other: Self) -> Self {
+        UID(self.0.min(other.0))
+    }
+
+    fn clamp(self, min: Self, max: Self) -> Self {
+        UID(self.0.clamp(min.0, max.0))
+    }
+} // impl Ord for UID
 
 pub struct Event(bool);
 
@@ -28,6 +129,7 @@ pub struct EventsBody {
     events: HashMap<&'static str, EventRef>,
     selector: Box<dyn Selector + Sync + Send>,
     emitter: Box<dyn Emitter + Sync + Send>,
+    seqno: u64,
 }
 
 impl EventsBody {
@@ -55,7 +157,7 @@ pub trait Selector {
 pub struct NullSelector {}
 
 impl NullSelector {
-    fn new() -> NullSelector {
+    pub fn new() -> NullSelector {
         NullSelector {}
     }
 } // impl NullSelector
@@ -72,7 +174,7 @@ pub struct RegexSelector {
 }
 
 impl RegexSelector {
-    fn new(include: Option<&str>, exclude: Option<&str>) -> RegexSelector {
+    pub fn new(include: Option<&str>, exclude: Option<&str>) -> RegexSelector {
         RegexSelector {
             include: include.map(|re| regex::Regex::new(re).unwrap()),
             exclude: exclude.map(|re| regex::Regex::new(re).unwrap()),
@@ -123,6 +225,7 @@ lazy_static! {
         events: HashMap::new(),
         selector: Box::new(NullSelector::new()),
         emitter: Box::new(StderrEmitter::new()),
+        seqno: 0,
     }));
 }
 
