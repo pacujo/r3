@@ -6,23 +6,13 @@ extern crate lazy_static;
 use std::fmt::Write;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-pub fn format_in_threes(f: &mut std::fmt::Formatter, n: u64)
+pub fn format_in_threes<T: std::fmt::Write>(f: &mut T, n: u64)
                         -> std::fmt::Result {
     if n >= 1000 {
         format_in_threes(f, n / 1000)?;
         write!(f, "_{:03}", n % 1000)
     } else {
         write!(f, "{}", n)
-    }
-}
-
-pub fn format_in_threes_signed(f: &mut std::fmt::Formatter, n: i64)
-                               -> std::fmt::Result {
-    if n < 0 {
-        write!(f, "-")?;
-        format_in_threes(f, -n as u64)
-    } else {
-        format_in_threes(f, n as u64)
     }
 }
 
@@ -35,8 +25,13 @@ pub fn octets(data: &[u8]) -> String {
 }
 
 pub fn hex(n: u64) -> String {
+    format!("0x{:x}", n)
+}
+
+pub fn time(t: std::time::Instant) -> String {
     let mut result = String::new();
-    write!(result, "0x{:x}", n).unwrap();
+    let nanos = (t - TRACE_DB.body().time_immemorial).as_nanos() as u64;
+    format_in_threes(&mut result, nanos).unwrap();
     result
 }
 
@@ -307,6 +302,7 @@ pub struct EventsBody {
     selector: Box<dyn Selector + Sync + Send>,
     emitter: Box<dyn Emitter + Sync + Send>,
     seqno: u64,
+    time_immemorial: std::time::Instant,
 }
 
 impl EventsBody {
@@ -403,6 +399,7 @@ lazy_static! {
         selector: Box::new(NullSelector::new()),
         emitter: Box::new(StderrEmitter::new()),
         seqno: 0,
+        time_immemorial: std::time::Instant::now(),
     }));
 }
 
