@@ -16,6 +16,14 @@ pub fn format_in_threes<T: std::fmt::Write>(f: &mut T, n: u64)
     }
 }
 
+pub fn option<T: std::fmt::Display>(value: &Option<T>) -> String {
+    if let Some(inner) = value {
+        inner.to_string()
+    } else {
+        String::new()
+    }
+}
+
 pub fn octets(data: &[u8]) -> String {
     let mut result = String::new();
     for i in data.iter() {
