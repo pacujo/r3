@@ -6,6 +6,14 @@ extern crate lazy_static;
 use std::fmt::Write;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
+pub trait Traceable {
+    fn trace_repr(&self) -> String;
+}
+
+impl<T> Traceable for T where T: ToString {
+    fn trace_repr(&self) -> String { urlencode(self.to_string()) }
+}
+
 pub fn format_in_threes<T: std::fmt::Write>(f: &mut T, n: u64)
                         -> std::fmt::Result {
     if n >= 1000 {
@@ -30,6 +38,16 @@ pub fn octets(data: &[u8]) -> String {
         write!(result, "{:02x}", *i).unwrap();
     }
     result
+}
+
+pub struct Text(Vec<u8>);
+
+pub fn text(data: &[u8]) -> Text {
+    Text(data.to_vec())
+}
+
+impl Traceable for Text {
+    fn trace_repr(&self) -> String { urlencode_bytes(&self.0) }
 }
 
 pub fn hex(n: u64) -> String {
@@ -471,12 +489,16 @@ const CHARENCODINGS: [&'static str; 256] = [
         "%F8", "%F9", "%FA", "%FB", "%FC", "%FD", "%FE", "%FF",
     ];
 
-pub fn urlencode(s: String) -> String {
-    s.into_bytes()
+pub fn urlencode_bytes(data: &[u8]) -> String {
+    data
         .iter()
         .map(|b| CHARENCODINGS[*b as usize].to_string())
         .collect::<Vec<String>>()
         .join("")
+}
+
+pub fn urlencode(s: String) -> String {
+    urlencode_bytes(&s.into_bytes())
 }
 
 #[macro_export]
@@ -507,7 +529,7 @@ macro_rules! r3_event_is_selected {
 macro_rules! r3_format_event_arg {
     ($arg:ident, $val:expr) => {
         {
-            let enc = $crate::urlencode(($val).to_string());
+            let enc = ($val).trace_repr();
             format!("{}={}", $crate::r3_dashify_id!($arg), enc).to_string()
         }
     };
