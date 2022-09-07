@@ -3,7 +3,6 @@
 #[macro_use]
 extern crate lazy_static;
 
-use std::fmt::Write;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 pub trait Traceable {
@@ -32,21 +31,13 @@ pub fn option<T: std::fmt::Display>(value: &Option<T>) -> String {
     }
 }
 
-pub fn octets(data: &[u8]) -> String {
-    let mut result = String::new();
-    for i in data.iter() {
-        write!(result, "{:02x}", *i).unwrap();
-    }
-    result
+pub struct Octets(Vec<u8>);
+
+pub fn octets(data: &[u8]) -> Octets {
+    Octets(data.to_vec())
 }
 
-pub struct Text(Vec<u8>);
-
-pub fn text(data: &[u8]) -> Text {
-    Text(data.to_vec())
-}
-
-impl Traceable for Text {
+impl Traceable for Octets {
     fn trace_repr(&self) -> String { urlencode_bytes(&self.0) }
 }
 
@@ -253,7 +244,9 @@ impl UID {
 
 impl std::fmt::Display for UID {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        format_in_threes(f, self.0)
+        write!(f, "{{")?;
+        format_in_threes(f, self.0)?;
+        write!(f, "}}")
     }
 } // impl Display for UID
 
